@@ -1,7 +1,25 @@
 import { useState, useEffect } from "react";
 import { Package, Search, ExternalLink, AlertCircle, ShoppingCart, CheckCircle, Clock, XCircle } from "lucide-react";
-import { Order } from "../types";
+import { Order, OrderItem } from "../types";
 import { supabase } from "../lib/supabase";
+
+const mapOrderFromDB = (dbOrder: any): Order => ({
+  id: dbOrder.id,
+  customerName: dbOrder.customer_name,
+  customerEmail: dbOrder.customer_email,
+  customerPhone: dbOrder.customer_phone,
+  status: dbOrder.status,
+  totalAmount: Number(dbOrder.total_amount),
+  createdAt: dbOrder.created_at,
+  items: (dbOrder.items || []).map((dbItem: any): OrderItem => ({
+    id: dbItem.id,
+    orderId: dbItem.order_id,
+    productId: dbItem.product_id,
+    productName: dbItem.product_name,
+    quantity: Number(dbItem.quantity),
+    price: Number(dbItem.price),
+  })),
+});
 
 export default function Orders() {
   const [orders, setOrders] = useState<Order[]>([]);
@@ -11,6 +29,19 @@ export default function Orders() {
 
   useEffect(() => {
     fetchOrders();
+
+    if (supabase) {
+      const ordersSub = supabase
+        .channel('public:orders')
+        .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
+          fetchOrders();
+        })
+        .subscribe();
+
+      return () => {
+        ordersSub.unsubscribe();
+      };
+    }
   }, []);
 
   const fetchOrders = async () => {
@@ -55,10 +86,10 @@ export default function Orders() {
           *,
           items:order_items(*)
         `)
-        .order('createdAt', { ascending: false });
+        .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setOrders(data as Order[]);
+      setOrders((data || []).map(mapOrderFromDB));
     } catch (err: any) {
       console.error("Error fetching orders:", err);
       setError(err.message || "Erreur lors du chargement des commandes.");
@@ -66,6 +97,7 @@ export default function Orders() {
       setLoading(false);
     }
   };
+
 
   const updateOrderStatus = async (orderId: string, status: Order['status']) => {
     if (!supabase) {
