@@ -42,31 +42,73 @@ const mapMovementFromDB = (dbMovement: any): StockMovement => ({
 export function ProductProvider({ children }: { children: ReactNode }) {
   const [products, setProducts] = useState<Product[]>([]);
   const [movements, setMovements] = useState<StockMovement[]>([]);
+  const [isInitialized, setIsInitialized] = useState(false);
   const { user } = useAuth();
 
-  const fetchProducts = async () => {
+  const fetchProducts = async (isInitial = false) => {
     if (!supabase) return;
-    const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false });
-    if (error) {
-      console.error('Error fetching products:', error);
-      return;
+    try {
+      const { data, error } = await supabase.from('products').select('*').order('created_at', { ascending: false });
+      
+      if (error) {
+        console.error('Error fetching products:', error);
+        return;
+      }
+      
+      if (data && data.length === 0 && !isInitial) {
+        // If we get an empty array, verify if the session is still valid. 
+        // If the session is invalid, RLS silently returns [] instead of an error.
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (!sessionData.session) {
+          console.warn('Session expired. Ignoring empty data from RLS silent failure and forcing sign out.');
+          await supabase.auth.signOut();
+          return;
+        }
+      }
+      
+      setProducts((data || []).map(mapProductFromDB));
+    } catch (err) {
+      console.error('Exception fetching products:', err);
     }
-    setProducts((data || []).map(mapProductFromDB));
   };
 
-  const fetchMovements = async () => {
+  const fetchMovements = async (isInitial = false) => {
     if (!supabase) return;
-    const { data, error } = await supabase.from('stock_movements').select('*').order('date', { ascending: false });
-    if (error) {
-      console.error('Error fetching movements:', error);
-      return;
+    try {
+      const { data, error } = await supabase.from('stock_movements').select('*').order('date', { ascending: false });
+      
+      if (error) {
+        console.error('Error fetching movements:', error);
+        return;
+      }
+      
+      if (data && data.length === 0 && !isInitial) {
+        const { data: sessionData } = await supabase.auth.getSession();
+        if (!sessionData.session) {
+          console.warn('Session expired. Ignoring empty movements data and forcing sign out.');
+          await supabase.auth.signOut();
+          return;
+        }
+      }
+
+      setMovements((data || []).map(mapMovementFromDB));
+    } catch (err) {
+      console.error('Exception fetching movements:', err);
     }
-    setMovements((data || []).map(mapMovementFromDB));
   };
 
   useEffect(() => {
-    fetchProducts();
-    fetchMovements();
+    let mounted = true;
+
+    const initData = async () => {
+      await fetchProducts(true);
+      await fetchMovements(true);
+      if (mounted) {
+        setIsInitialized(true);
+      }
+    };
+
+    initData();
 
     if (!supabase) return;
 
@@ -74,18 +116,19 @@ export function ProductProvider({ children }: { children: ReactNode }) {
     const productsSub = supabase
       .channel('public:products')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, (payload) => {
-        fetchProducts(); // or optimally update local state based on payload
+        fetchProducts(false); // optimal to pass false for subsequent updates
       })
       .subscribe();
 
     const movementsSub = supabase
       .channel('public:stock_movements')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'stock_movements' }, (payload) => {
-        fetchMovements(); // or optimally update local state
+        fetchMovements(false);
       })
       .subscribe();
 
     return () => {
+      mounted = false;
       productsSub.unsubscribe();
       movementsSub.unsubscribe();
     };

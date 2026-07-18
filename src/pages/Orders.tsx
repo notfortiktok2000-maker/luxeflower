@@ -28,13 +28,13 @@ export default function Orders() {
   const [searchTerm, setSearchTerm] = useState("");
 
   useEffect(() => {
-    fetchOrders();
+    fetchOrders(true);
 
     if (supabase) {
       const ordersSub = supabase
         .channel('public:orders')
         .on('postgres_changes', { event: '*', schema: 'public', table: 'orders' }, (payload) => {
-          fetchOrders();
+          fetchOrders(false);
         })
         .subscribe();
 
@@ -44,42 +44,11 @@ export default function Orders() {
     }
   }, []);
 
-  const fetchOrders = async () => {
+  const fetchOrders = async (isInitial = false) => {
     try {
-      setLoading(true);
-      if (!supabase) {
-        // Mock data if Supabase is not configured
-        setTimeout(() => {
-          setOrders([
-            {
-              id: "ORD-2024-001",
-              customerName: "Sophie Martin",
-              customerEmail: "sophie.m@example.com",
-              customerPhone: "06 12 34 56 78",
-              status: "PENDING",
-              totalAmount: 450,
-              createdAt: new Date().toISOString(),
-              items: [
-                { id: "1", orderId: "ORD-2024-001", productId: "p1", productName: "Bouquet de Roses Rouges", quantity: 1, price: 350 },
-                { id: "2", orderId: "ORD-2024-001", productId: "p2", productName: "Vase en Verre", quantity: 1, price: 100 }
-              ]
-            },
-            {
-              id: "ORD-2024-002",
-              customerName: "Karim Alaoui",
-              customerEmail: "k.alaoui@example.com",
-              customerPhone: "06 98 76 54 32",
-              status: "COMPLETED",
-              totalAmount: 1200,
-              createdAt: new Date(Date.now() - 86400000).toISOString(),
-            }
-          ]);
-          setLoading(false);
-        }, 1000);
-        return;
-      }
+      if (isInitial) setLoading(true);
+      if (!supabase) return;
 
-      // If Supabase is configured, fetch real data
       const { data, error } = await supabase
         .from('orders')
         .select(`
@@ -89,12 +58,25 @@ export default function Orders() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setOrders((data || []).map(mapOrderFromDB));
+
+      setOrders(prevOrders => {
+        if (data && data.length === 0 && prevOrders.length > 0 && !isInitial) {
+          console.warn('Received empty orders list, checking session...');
+          supabase.auth.getSession().then(({ data: sessionData }) => {
+            if (!sessionData.session) {
+              console.error('Session expired, ignoring empty data and forcing sign out.');
+              supabase.auth.signOut();
+            }
+          });
+          return prevOrders;
+        }
+        return (data || []).map(mapOrderFromDB);
+      });
     } catch (err: any) {
       console.error("Error fetching orders:", err);
       setError(err.message || "Erreur lors du chargement des commandes.");
     } finally {
-      setLoading(false);
+      if (isInitial) setLoading(false);
     }
   };
 
@@ -148,20 +130,7 @@ export default function Orders() {
         </div>
       </div>
 
-      {!supabase && (
-        <div className="bg-blue-50 border-l-4 border-blue-500 p-4 rounded-r-lg">
-          <div className="flex items-start">
-            <AlertCircle className="w-5 h-5 text-blue-600 mt-0.5 mr-3" />
-            <div>
-              <h3 className="text-sm font-bold text-blue-800">Mode Démo</h3>
-              <p className="text-sm text-blue-600 mt-1">
-                La synchronisation Supabase n'est pas configurée. Les données affichées sont des exemples. 
-                Pour connecter votre vraie base de données, ajoutez <strong>VITE_SUPABASE_URL</strong> et <strong>VITE_SUPABASE_ANON_KEY</strong> dans vos variables d'environnement.
-              </p>
-            </div>
-          </div>
-        </div>
-      )}
+
 
       <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden flex flex-col">
         <div className="p-4 border-b border-slate-100 bg-slate-50/50 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
