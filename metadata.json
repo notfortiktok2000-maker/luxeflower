@@ -1,0 +1,6 @@
+{
+  "name": "FloraStock",
+  "description": "Logiciel de gestion de stock pour entreprise de fleurs.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
