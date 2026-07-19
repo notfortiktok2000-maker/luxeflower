@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowDownToLine, ArrowUpRight, CheckCircle2, Download, Package, RefreshCw, AlertTriangle, TrendingUp } from "lucide-react";
+import { ArrowDownToLine, ArrowUpRight, CheckCircle2, Download, Package, RefreshCw, AlertTriangle, TrendingUp, ChevronLeft, ChevronRight } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useProducts } from "../context/ProductContext";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
@@ -7,11 +7,45 @@ import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "rec
 export default function Dashboard() {
   const { products, movements, refreshData } = useProducts();
   const [isRefreshing, setIsRefreshing] = React.useState(false);
+  const [selectedDate, setSelectedDate] = React.useState<Date>(() => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return today;
+  });
 
   const handleRefresh = async () => {
     setIsRefreshing(true);
     await refreshData();
     setIsRefreshing(false);
+  };
+
+  const handlePrevDay = () => {
+    setSelectedDate(prev => {
+      const next = new Date(prev);
+      next.setDate(next.getDate() - 1);
+      return next;
+    });
+  };
+
+  const handleNextDay = () => {
+    setSelectedDate(prev => {
+      const next = new Date(prev);
+      next.setDate(next.getDate() + 1);
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      if (next <= today) return next;
+      return prev;
+    });
+  };
+
+  const isToday = () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    return selectedDate.getTime() === today.getTime();
+  };
+
+  const formatDate = (date: Date) => {
+    return date.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
   };
 
   const totalProducts = products.length;
@@ -22,10 +56,17 @@ export default function Dashboard() {
   const lowStock = products.filter(p => p.stockQuantity > 0 && p.stockQuantity <= 10);
   const totalAlerts = outOfStock.length + lowStock.length;
 
-  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
-  const todaysSalesMovements = movements.filter(m => m.type === 'OUT' && new Date(m.date) >= twentyFourHoursAgo);
-  const todaysTransactions = todaysSalesMovements.length;
-  const todaysRevenue = todaysSalesMovements.reduce((acc, m) => {
+  const selectedSalesMovements = movements.filter(m => {
+    if (m.type !== 'OUT') return false;
+    const mDate = new Date(m.date);
+    const startOfDay = new Date(selectedDate);
+    const endOfDay = new Date(selectedDate);
+    endOfDay.setHours(23, 59, 59, 999);
+    return mDate >= startOfDay && mDate <= endOfDay;
+  });
+
+  const selectedDayTransactions = selectedSalesMovements.length;
+  const selectedDayRevenue = selectedSalesMovements.reduce((acc, m) => {
     const product = products.find(p => p.id === m.productId);
     const price = product?.sellingPrice || 0;
     return acc + (m.quantity * price);
@@ -43,30 +84,42 @@ export default function Dashboard() {
   };
 
   const salesData = React.useMemo(() => {
-    const data = [
-      { time: '08:00', sales: 0 },
-      { time: '10:00', sales: 0 },
-      { time: '12:00', sales: 0 },
-      { time: '14:00', sales: 0 },
-      { time: '16:00', sales: 0 },
-      { time: '18:00', sales: 0 },
-      { time: '20:00', sales: 0 }
-    ];
+    const points: Record<string, number> = {
+      '08:00': 0,
+      '10:00': 0,
+      '12:00': 0,
+      '14:00': 0,
+      '16:00': 0,
+      '18:00': 0,
+      '20:00': 0,
+    };
 
-    todaysSalesMovements.forEach(m => {
+    selectedSalesMovements.forEach(m => {
       const date = new Date(m.date);
-      const hour = date.getHours();
-      let bucketIndex = Math.floor((hour - 8) / 2);
-      if (bucketIndex < 0) bucketIndex = 0;
-      if (bucketIndex > 6) bucketIndex = 6;
+      let hour = date.getHours();
+      
+      // Group by 2-hour buckets starting from 08:00
+      let bucketHour = Math.floor(hour / 2) * 2;
+      if (bucketHour < 8) bucketHour = 8;
+      if (bucketHour > 20) bucketHour = 20;
+      
+      const timeLabel = `${bucketHour.toString().padStart(2, '0')}:00`;
       
       const product = products.find(p => p.id === m.productId);
       const price = product?.sellingPrice || 0;
-      data[bucketIndex].sales += (m.quantity * price);
+      
+      points[timeLabel] = (points[timeLabel] || 0) + (m.quantity * price);
     });
 
+    const data = Object.keys(points).map(time => ({
+      time,
+      sales: points[time]
+    }));
+
+    data.sort((a, b) => a.time.localeCompare(b.time));
+
     return data;
-  }, [todaysSalesMovements, products]);
+  }, [selectedSalesMovements, products]);
 
   return (
     <div className="space-y-6 md:space-y-8">
@@ -111,13 +164,30 @@ export default function Dashboard() {
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm lg:col-span-2 flex flex-col">
           <div className="flex items-center justify-between mb-4">
             <div>
-              <h3 className="font-bold text-slate-800">Ventes (24h)</h3>
+              <h3 className="font-bold text-slate-800">Ventes du jour</h3>
               <div className="flex flex-col mt-2">
-                <span className="text-3xl font-bold text-slate-900">{todaysRevenue.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-base font-normal text-slate-400">MAD</span></span>
-                <span className="text-sm text-slate-500 mt-1">{todaysTransactions} transaction{todaysTransactions !== 1 && 's'} traitée{todaysTransactions !== 1 && 's'} ces dernières 24h</span>
+                <span className="text-3xl font-bold text-slate-900">{selectedDayRevenue.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-base font-normal text-slate-400">MAD</span></span>
+                <span className="text-sm text-slate-500 mt-1">{selectedDayTransactions} transaction{selectedDayTransactions !== 1 && 's'} traitée{selectedDayTransactions !== 1 && 's'} ce jour</span>
               </div>
             </div>
-            <span className="text-blue-600 bg-blue-50 px-2 py-1 rounded text-[10px] font-bold self-start">DERNIÈRES 24H</span>
+            <div className="flex flex-col items-end gap-2 self-start">
+              <div className="flex items-center bg-slate-50 rounded-lg border border-slate-200 p-1">
+                <button onClick={handlePrevDay} className="p-1 hover:bg-white rounded transition-colors text-slate-600">
+                  <ChevronLeft className="w-4 h-4" />
+                </button>
+                <span className="text-xs font-medium px-3 text-slate-700 min-w-[120px] text-center">
+                  {isToday() ? "Aujourd'hui" : formatDate(selectedDate)}
+                </span>
+                <button 
+                  onClick={handleNextDay} 
+                  disabled={isToday()}
+                  className={`p-1 rounded transition-colors ${isToday() ? 'text-slate-300' : 'hover:bg-white text-slate-600'}`}
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </button>
+              </div>
+              {isToday() && <span className="text-blue-600 bg-blue-50 px-2 py-1 rounded text-[10px] font-bold">AUJOURD'HUI</span>}
+            </div>
           </div>
           <div className="flex-1 mt-4 min-h-[150px]">
             <ResponsiveContainer width="100%" height="100%">

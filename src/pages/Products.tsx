@@ -26,7 +26,8 @@ export default function Products() {
   const categories = Array.from(new Set(products.map(p => p.category)));
 
   const filteredProducts = products.filter(p => {
-    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.barcode.includes(searchTerm);
+    const matchesSearch = p.name.toLowerCase().includes(searchTerm.toLowerCase()) || 
+                          (p.barcode && p.barcode.toLowerCase().includes(searchTerm.toLowerCase()));
     const matchesCategory = categoryFilter === "all" || p.category === categoryFilter;
     return matchesSearch && matchesCategory;
   });
