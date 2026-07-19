@@ -1,20 +1,22 @@
-import { ArrowUpRight, Package, TrendingUp } from "lucide-react";
+import React from "react";
+import { ArrowDownToLine, ArrowUpRight, CheckCircle2, Download, Package, RefreshCw, AlertTriangle, TrendingUp } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useProducts } from "../context/ProductContext";
+import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 export default function Dashboard() {
   const { products, movements } = useProducts();
 
   const totalProducts = products.length;
   const totalStock = products.reduce((acc, p) => acc + p.stockQuantity, 0);
-  const stockValue = products.reduce((acc, p) => acc + (p.stockQuantity * p.purchasePrice), 0);
+  const stockValue = products.reduce((acc, p) => acc + (p.stockQuantity * p.sellingPrice), 0);
   
   const outOfStock = products.filter(p => p.stockQuantity === 0);
   const lowStock = products.filter(p => p.stockQuantity > 0 && p.stockQuantity <= 10);
   const totalAlerts = outOfStock.length + lowStock.length;
 
-  const today = new Date().toDateString();
-  const todaysSalesMovements = movements.filter(m => m.type === 'OUT' && new Date(m.date).toDateString() === today);
+  const twentyFourHoursAgo = new Date(Date.now() - 24 * 60 * 60 * 1000);
+  const todaysSalesMovements = movements.filter(m => m.type === 'OUT' && new Date(m.date) >= twentyFourHoursAgo);
   const todaysTransactions = todaysSalesMovements.length;
   const todaysRevenue = todaysSalesMovements.reduce((acc, m) => {
     const product = products.find(p => p.id === m.productId);
@@ -22,7 +24,7 @@ export default function Dashboard() {
     return acc + (m.quantity * price);
   }, 0);
 
-  const recentMovements = [...movements].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 5);
+  const recentMovements = [...movements].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(0, 4);
 
   const formatTimeAgo = (dateString: string) => {
     const diff = Math.floor((new Date().getTime() - new Date(dateString).getTime()) / 60000);
@@ -32,6 +34,32 @@ export default function Dashboard() {
     if (hours < 24) return `Il y a ${hours}h`;
     return new Date(dateString).toLocaleDateString('fr-FR');
   };
+
+  const salesData = React.useMemo(() => {
+    const data = [
+      { time: '08:00', sales: 0 },
+      { time: '10:00', sales: 0 },
+      { time: '12:00', sales: 0 },
+      { time: '14:00', sales: 0 },
+      { time: '16:00', sales: 0 },
+      { time: '18:00', sales: 0 },
+      { time: '20:00', sales: 0 }
+    ];
+
+    todaysSalesMovements.forEach(m => {
+      const date = new Date(m.date);
+      const hour = date.getHours();
+      let bucketIndex = Math.floor((hour - 8) / 2);
+      if (bucketIndex < 0) bucketIndex = 0;
+      if (bucketIndex > 6) bucketIndex = 6;
+      
+      const product = products.find(p => p.id === m.productId);
+      const price = product?.sellingPrice || 0;
+      data[bucketIndex].sales += (m.quantity * price);
+    });
+
+    return data;
+  }, [todaysSalesMovements, products]);
 
   return (
     <div className="space-y-6 md:space-y-8">
@@ -63,44 +91,80 @@ export default function Dashboard() {
 
       {/* Secondary Stats Row */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 md:gap-6">
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm lg:col-span-1">
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm lg:col-span-2 flex flex-col">
           <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-slate-800">Ventes du jour</h3>
-            <span className="text-blue-600 bg-blue-50 px-2 py-1 rounded text-[10px] font-bold">AUJOURD'HUI</span>
+            <div>
+              <h3 className="font-bold text-slate-800">Ventes (24h)</h3>
+              <div className="flex flex-col mt-2">
+                <span className="text-3xl font-bold text-slate-900">{todaysRevenue.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-base font-normal text-slate-400">MAD</span></span>
+                <span className="text-sm text-slate-500 mt-1">{todaysTransactions} transaction{todaysTransactions !== 1 && 's'} traitée{todaysTransactions !== 1 && 's'} ces dernières 24h</span>
+              </div>
+            </div>
+            <span className="text-blue-600 bg-blue-50 px-2 py-1 rounded text-[10px] font-bold self-start">DERNIÈRES 24H</span>
           </div>
-          <div className="flex flex-col">
-            <span className="text-3xl font-bold text-slate-900">{todaysRevenue.toLocaleString('fr-MA', { minimumFractionDigits: 2, maximumFractionDigits: 2 })} <span className="text-base font-normal text-slate-400">MAD</span></span>
-            <span className="text-sm text-slate-500 mt-1">{todaysTransactions} transaction{todaysTransactions !== 1 && 's'} traitée{todaysTransactions !== 1 && 's'}</span>
+          <div className="flex-1 mt-4 min-h-[150px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={salesData} margin={{ top: 0, right: 0, left: 0, bottom: 0 }}>
+                <defs>
+                  <linearGradient id="colorSales" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
+                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <XAxis dataKey="time" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} dy={10} />
+                <Tooltip
+                  contentStyle={{ borderRadius: '8px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                  formatter={(value: number) => [`${value} MAD`, 'Ventes']}
+                />
+                <Area type="monotone" dataKey="sales" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorSales)" />
+              </AreaChart>
+            </ResponsiveContainer>
           </div>
         </div>
 
-        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm lg:col-span-2">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="font-bold text-slate-800">Dernières Opérations</h3>
+        <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm lg:col-span-1">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="font-bold text-slate-800">Activité Récente</h3>
             <Link to="/history" className="text-blue-600 text-xs font-medium hover:underline">Voir tout</Link>
           </div>
-          <div className="space-y-3">
+          <div className="space-y-6">
             {recentMovements.length > 0 ? recentMovements.map(movement => (
-              <div key={movement.id} className="flex items-center justify-between py-2 border-b border-slate-50 last:border-0">
-                <div className="flex items-center gap-3">
-                  <div className={`w-8 h-8 rounded flex items-center justify-center ${movement.type === 'IN' ? 'bg-green-50' : 'bg-purple-50'}`}>
-                    {movement.type === 'IN' ? (
-                      <ArrowUpRight className="w-4 h-4 text-green-600" />
-                    ) : (
-                      <TrendingUp className="w-4 h-4 text-purple-600" />
-                    )}
-                  </div>
-                  <div>
-                    <p className="text-sm font-medium">{movement.type === 'IN' ? 'Entrée' : 'Sortie'}: {movement.productName}</p>
-                    <p className="text-[10px] text-slate-400">{formatTimeAgo(movement.date)} • {movement.user}</p>
-                  </div>
+              <div key={movement.id} className="flex gap-4">
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 ${movement.type === 'IN' ? 'bg-blue-50' : 'bg-indigo-50'}`}>
+                  {movement.type === 'IN' ? (
+                    <Download className="w-5 h-5 text-blue-600" />
+                  ) : (
+                    <RefreshCw className="w-5 h-5 text-indigo-600" />
+                  )}
                 </div>
-                <span className={`text-sm font-bold ${movement.type === 'IN' ? 'text-green-600' : 'text-slate-700'}`}>
-                  {movement.type === 'IN' ? '+' : '-'}{movement.quantity} unités
-                </span>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-slate-800">
+                    {movement.type === 'IN' ? 'Nouvelle Réception' : 'Vente Sync (Shopify)'}
+                  </p>
+                  <p className="text-sm text-slate-500 mt-0.5">
+                    {movement.quantity}x {movement.productName}
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1">{formatTimeAgo(movement.date)}</p>
+                </div>
               </div>
             )) : (
-              <p className="text-sm text-slate-500 py-4 text-center">Aucune opération récente.</p>
+              <p className="text-sm text-slate-500 py-4 text-center">Aucune activité récente.</p>
+            )}
+            
+            {/* Example static low stock alert to match the screenshot if we have low stock */}
+            {lowStock.length > 0 && (
+              <div className="flex gap-4">
+                <div className="w-10 h-10 rounded-full flex items-center justify-center shrink-0 bg-red-50">
+                  <AlertTriangle className="w-5 h-5 text-red-500" />
+                </div>
+                <div className="flex-1">
+                  <p className="text-sm font-semibold text-slate-800">Alerte Stock Bas</p>
+                  <p className="text-sm text-slate-500 mt-0.5">
+                    {lowStock[0].name} ({lowStock[0].stockQuantity} restants)
+                  </p>
+                  <p className="text-xs text-slate-400 mt-1">À l'instant</p>
+                </div>
+              </div>
             )}
           </div>
         </div>

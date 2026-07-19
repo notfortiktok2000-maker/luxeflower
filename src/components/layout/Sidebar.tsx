@@ -22,6 +22,17 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
     navigate("/login");
   };
 
+  const getInitials = (email: string) => {
+    if (!email) return 'JD';
+    const parts = email.split('@')[0].split(/[._-]/);
+    if (parts.length > 1) {
+      return (parts[0][0] + parts[1][0]).toUpperCase();
+    }
+    return email.substring(0, 2).toUpperCase();
+  };
+
+  const userName = user?.email ? user.email.split('@')[0].replace(/[._-]/g, ' ') : 'Jean Dupont';
+
   return (
     <aside className="w-64 bg-white border-r border-slate-200 flex flex-col h-full">
       <div className="p-6 flex items-center justify-between">
@@ -30,6 +41,19 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
           <X className="w-5 h-5" />
         </button>
       </div>
+      
+      <div className="px-4 mb-4">
+        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 px-3">E-COMMERCE SYNC</p>
+        <div className="bg-[#2D2A77] rounded-xl p-4 text-white shadow-sm">
+          <div className="flex items-center justify-between mb-2">
+            <span className="text-sm text-indigo-100/80">Statut API</span>
+            <span className="w-2 h-2 rounded-full bg-[#00E676] shadow-[0_0_8px_#00E676]"></span>
+          </div>
+          <h4 className="font-bold text-lg leading-tight mb-1">Shopify Connecté</h4>
+          <p className="text-xs text-indigo-100/60">Dernière sync: il y a 2m</p>
+        </div>
+      </div>
+
       <nav className="flex-1 px-4 space-y-1 overflow-y-auto">
         {navItems.map((item) => {
           const isActive = location.pathname === item.path || (item.path !== "/" && location.pathname.startsWith(item.path));
@@ -53,12 +77,12 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
       </nav>
       <div className="p-4 border-t border-slate-100 flex flex-col gap-4">
         <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-full bg-slate-200 overflow-hidden shrink-0">
-            <img src={`https://api.dicebear.com/7.x/avataaars/svg?seed=${user?.email || 'User'}`} alt="User avatar" className="w-full h-full object-cover" />
+          <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center shrink-0">
+            <span className="text-sm font-bold text-slate-600">{getInitials(user?.email || '')}</span>
           </div>
           <div className="overflow-hidden">
-            <p className="text-sm font-semibold truncate">{user?.email || 'Administrateur'}</p>
-            <p className="text-xs text-slate-500">Administrateur</p>
+            <p className="text-sm font-semibold text-slate-800 truncate capitalize">{userName}</p>
+            <p className="text-xs text-slate-500">Architecte Lead</p>
           </div>
         </div>
         <button 

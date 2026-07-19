@@ -50,11 +50,30 @@ ALTER TABLE stock_movements ENABLE ROW LEVEL SECURITY;
 ALTER TABLE orders ENABLE ROW LEVEL SECURITY;
 ALTER TABLE order_items ENABLE ROW LEVEL SECURITY;
 
+DROP POLICY IF EXISTS "Allow authenticated users to perform all actions on products" ON products;
 CREATE POLICY "Allow authenticated users to perform all actions on products" ON products FOR ALL USING (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Allow authenticated users to perform all actions on stock_movements" ON stock_movements;
 CREATE POLICY "Allow authenticated users to perform all actions on stock_movements" ON stock_movements FOR ALL USING (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Allow authenticated users to perform all actions on orders" ON orders;
 CREATE POLICY "Allow authenticated users to perform all actions on orders" ON orders FOR ALL USING (auth.role() = 'authenticated');
+
+DROP POLICY IF EXISTS "Allow authenticated users to perform all actions on order_items" ON order_items;
 CREATE POLICY "Allow authenticated users to perform all actions on order_items" ON order_items FOR ALL USING (auth.role() = 'authenticated');
 
--- Activer Realtime pour products et stock_movements
-ALTER PUBLICATION supabase_realtime ADD TABLE products;
-ALTER PUBLICATION supabase_realtime ADD TABLE stock_movements;
+-- Activer Realtime pour les tables (idempotent)
+DO $$
+BEGIN
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'products') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE products;
+  END IF;
+  
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'stock_movements') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE stock_movements;
+  END IF;
+
+  IF NOT EXISTS (SELECT 1 FROM pg_publication_tables WHERE pubname = 'supabase_realtime' AND tablename = 'orders') THEN
+    ALTER PUBLICATION supabase_realtime ADD TABLE orders;
+  END IF;
+END $$;
