@@ -136,7 +136,22 @@ export function ProductProvider({ children }: { children: ReactNode }) {
             return [mapProductFromDB(payload.new), ...prev];
           });
         } else if (payload.eventType === 'UPDATE') {
-          setProducts(prev => prev.map(p => p.id === payload.new.id ? mapProductFromDB(payload.new) : p));
+          setProducts(prev => prev.map(p => {
+            if (p.id === payload.new.id) {
+              return {
+                ...p,
+                ...(payload.new.name !== undefined && { name: payload.new.name }),
+                ...(payload.new.photo_url !== undefined && { photoUrl: payload.new.photo_url }),
+                ...(payload.new.barcode !== undefined && { barcode: payload.new.barcode }),
+                ...(payload.new.category !== undefined && { category: payload.new.category }),
+                ...(payload.new.supplier !== undefined && { supplier: payload.new.supplier }),
+                ...(payload.new.purchase_price !== undefined && { purchasePrice: Number(payload.new.purchase_price) }),
+                ...(payload.new.selling_price !== undefined && { sellingPrice: Number(payload.new.selling_price) }),
+                ...(payload.new.stock_quantity !== undefined && { stockQuantity: Number(payload.new.stock_quantity) }),
+              };
+            }
+            return p;
+          }));
         } else if (payload.eventType === 'DELETE') {
           setProducts(prev => prev.filter(p => p.id !== payload.old.id));
         } else {
@@ -155,7 +170,20 @@ export function ProductProvider({ children }: { children: ReactNode }) {
             return [mapMovementFromDB(payload.new), ...prev].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
           });
         } else if (payload.eventType === 'UPDATE') {
-          setMovements(prev => prev.map(m => m.id === payload.new.id ? mapMovementFromDB(payload.new) : m));
+          setMovements(prev => prev.map(m => {
+            if (m.id === payload.new.id) {
+              return {
+                ...m,
+                ...(payload.new.product_id !== undefined && { productId: payload.new.product_id }),
+                ...(payload.new.product_name !== undefined && { productName: payload.new.product_name }),
+                ...(payload.new.type !== undefined && { type: payload.new.type }),
+                ...(payload.new.quantity !== undefined && { quantity: Number(payload.new.quantity) }),
+                ...(payload.new.date !== undefined && { date: payload.new.date }),
+                ...(payload.new.user_name !== undefined && { user: payload.new.user_name }),
+              };
+            }
+            return m;
+          }));
         } else if (payload.eventType === 'DELETE') {
           setMovements(prev => prev.filter(m => m.id !== payload.old.id));
         } else {
