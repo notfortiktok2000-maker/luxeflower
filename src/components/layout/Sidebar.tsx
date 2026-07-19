@@ -42,15 +42,10 @@ export default function Sidebar({ onClose }: { onClose?: () => void }) {
         </button>
       </div>
       
-      <div className="px-4 mb-4">
-        <p className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 px-3">E-COMMERCE SYNC</p>
-        <div className="bg-[#2D2A77] rounded-xl p-4 text-white shadow-sm">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm text-indigo-100/80">Statut API</span>
-            <span className="w-2 h-2 rounded-full bg-[#00E676] shadow-[0_0_8px_#00E676]"></span>
-          </div>
-          <h4 className="font-bold text-lg leading-tight mb-1">Shopify Connecté</h4>
-          <p className="text-xs text-indigo-100/60">Dernière sync: il y a 2m</p>
+      <div className="px-4 mb-6">
+        <div className="bg-slate-50 border border-slate-200 rounded-lg py-2.5 px-3 flex items-center justify-between">
+          <span className="text-sm font-medium text-slate-700">Shopify Connecté</span>
+          <span className="w-2 h-2 rounded-full bg-green-500"></span>
         </div>
       </div>
 

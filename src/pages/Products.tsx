@@ -1,14 +1,21 @@
 import { useState } from "react";
 import { Link } from "react-router-dom";
-import { Plus, Search, Edit, Trash2, Filter, ArrowDownToLine, ArrowUpFromLine } from "lucide-react";
+import { Plus, Search, Edit, Trash2, Filter, ArrowDownToLine, ArrowUpFromLine, RefreshCw } from "lucide-react";
 import { useProducts } from "../context/ProductContext";
 import StockOperationModal from "../components/stock/StockOperationModal";
 import { Product } from "../types";
 
 export default function Products() {
-  const { products, deleteProduct } = useProducts();
+  const { products, deleteProduct, refreshData } = useProducts();
   const [searchTerm, setSearchTerm] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("all");
+  const [isRefreshing, setIsRefreshing] = useState(false);
+  
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await refreshData();
+    setIsRefreshing(false);
+  };
   
   const [modalState, setModalState] = useState<{isOpen: boolean, type: 'IN' | 'OUT', product: Product | null}>({
     isOpen: false,
@@ -36,6 +43,15 @@ export default function Products() {
           <p className="text-sm text-slate-500 mt-1">Gérez votre catalogue de fleurs et vos niveaux de stock.</p>
         </div>
         <div className="flex flex-wrap gap-2 sm:gap-3">
+          <button 
+            onClick={handleRefresh}
+            disabled={isRefreshing}
+            className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-slate-900 transition-colors disabled:opacity-50 shadow-sm"
+            title="Actualiser les données"
+          >
+            <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+            <span className="hidden sm:inline">Actualiser</span>
+          </button>
           <button onClick={() => openModal('IN')} className="flex-1 sm:flex-none justify-center bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition-colors flex items-center gap-2 shadow-sm">
             <ArrowDownToLine className="w-4 h-4 shrink-0" /> <span className="hidden sm:inline">Entrée</span>
           </button>

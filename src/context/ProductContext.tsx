@@ -11,6 +11,7 @@ interface ProductContextType {
   deleteProduct: (id: string) => Promise<void>;
   addStock: (productId: string, quantity: number) => Promise<void>;
   removeStock: (productId: string, quantity: number) => Promise<void>;
+  refreshData: () => Promise<void>;
 }
 
 const ProductContext = createContext<ProductContextType | undefined>(undefined);
@@ -97,6 +98,13 @@ export function ProductProvider({ children }: { children: ReactNode }) {
     }
   };
 
+  const refreshData = async () => {
+    await Promise.all([
+      fetchProducts(true),
+      fetchMovements(true)
+    ]);
+  };
+
   useEffect(() => {
     let mounted = true;
 
@@ -108,22 +116,51 @@ export function ProductProvider({ children }: { children: ReactNode }) {
       }
     };
 
-    initData();
+    if (user?.id) {
+      initData();
+    } else {
+      setProducts([]);
+      setMovements([]);
+    }
 
-    if (!supabase) return;
+    if (!supabase || !user?.id) return;
 
     // Realtime subscriptions
     const productsSub = supabase
       .channel('public:products')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'products' }, (payload) => {
-        fetchProducts(false); // optimal to pass false for subsequent updates
+        if (payload.eventType === 'INSERT') {
+          setProducts(prev => {
+            const exists = prev.some(p => p.id === payload.new.id);
+            if (exists) return prev;
+            return [mapProductFromDB(payload.new), ...prev];
+          });
+        } else if (payload.eventType === 'UPDATE') {
+          setProducts(prev => prev.map(p => p.id === payload.new.id ? mapProductFromDB(payload.new) : p));
+        } else if (payload.eventType === 'DELETE') {
+          setProducts(prev => prev.filter(p => p.id !== payload.old.id));
+        } else {
+          fetchProducts(false);
+        }
       })
       .subscribe();
 
     const movementsSub = supabase
       .channel('public:stock_movements')
       .on('postgres_changes', { event: '*', schema: 'public', table: 'stock_movements' }, (payload) => {
-        fetchMovements(false);
+        if (payload.eventType === 'INSERT') {
+          setMovements(prev => {
+            const exists = prev.some(m => m.id === payload.new.id);
+            if (exists) return prev;
+            return [mapMovementFromDB(payload.new), ...prev].sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+          });
+        } else if (payload.eventType === 'UPDATE') {
+          setMovements(prev => prev.map(m => m.id === payload.new.id ? mapMovementFromDB(payload.new) : m));
+        } else if (payload.eventType === 'DELETE') {
+          setMovements(prev => prev.filter(m => m.id !== payload.old.id));
+        } else {
+          fetchMovements(false);
+        }
       })
       .subscribe();
 
@@ -132,7 +169,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
       productsSub.unsubscribe();
       movementsSub.unsubscribe();
     };
-  }, []);
+  }, [user?.id]);
 
   const addProduct = async (product: Omit<Product, 'id' | 'createdAt'>) => {
     if (!supabase) return;
@@ -243,7 +280,7 @@ export function ProductProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <ProductContext.Provider value={{ products, movements, addProduct, updateProduct, deleteProduct, addStock, removeStock }}>
+    <ProductContext.Provider value={{ products, movements, addProduct, updateProduct, deleteProduct, addStock, removeStock, refreshData }}>
       {children}
     </ProductContext.Provider>
   );

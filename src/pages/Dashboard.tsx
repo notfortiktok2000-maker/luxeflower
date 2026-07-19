@@ -5,7 +5,14 @@ import { useProducts } from "../context/ProductContext";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, XAxis, YAxis } from "recharts";
 
 export default function Dashboard() {
-  const { products, movements } = useProducts();
+  const { products, movements, refreshData } = useProducts();
+  const [isRefreshing, setIsRefreshing] = React.useState(false);
+
+  const handleRefresh = async () => {
+    setIsRefreshing(true);
+    await refreshData();
+    setIsRefreshing(false);
+  };
 
   const totalProducts = products.length;
   const totalStock = products.reduce((acc, p) => acc + p.stockQuantity, 0);
@@ -63,6 +70,16 @@ export default function Dashboard() {
 
   return (
     <div className="space-y-6 md:space-y-8">
+      <div className="flex justify-end">
+        <button 
+          onClick={handleRefresh}
+          disabled={isRefreshing}
+          className="flex items-center gap-2 px-3 py-1.5 text-sm font-medium text-slate-600 bg-white border border-slate-200 rounded-md hover:bg-slate-50 hover:text-slate-900 transition-colors disabled:opacity-50 shadow-sm"
+        >
+          <RefreshCw className={`w-4 h-4 ${isRefreshing ? 'animate-spin' : ''}`} />
+          Actualiser
+        </button>
+      </div>
       {/* Top Stats Grid */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
         <div className="bg-white p-5 rounded-xl border border-slate-200 shadow-sm">
